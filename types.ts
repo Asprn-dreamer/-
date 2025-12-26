@@ -1,10 +1,13 @@
 
 export interface ImageState {
+  id: string;
   originalUrl: string;
   width: number;
   height: number;
   aspectRatio: number;
   fileName: string;
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  slices: SliceResult[];
 }
 
 export interface SliceResult {
@@ -15,7 +18,7 @@ export interface SliceResult {
   sizeLabel: string;
 }
 
-export type ExportFormat = 'jpeg' | 'png' | 'gif';
+export type ExportFormat = 'jpeg' | 'png';
 
 export interface ProcessingOptions {
   targetWidth: number;

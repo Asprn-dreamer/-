@@ -1,5 +1,5 @@
 {
-  "name": "Copy of JJBoo PixelSlice",
+  "name": "JJBoo PixelSlice",
   "description": "An advanced image manipulation tool that allows precision resizing and vertical slicing for social media long-form content. Includes AI-powered analysis to suggest optimal slicing points.",
   "requestFramePermissions": [
     "camera"
