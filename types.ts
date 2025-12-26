@@ -24,6 +24,7 @@ export interface ProcessingOptions {
   targetWidth: number;
   targetHeight: number;
   sliceHeight: number;
+  enableSlicing: boolean;
   keepAspectRatio: boolean;
   exportFormat: ExportFormat;
 }

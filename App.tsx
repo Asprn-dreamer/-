@@ -15,6 +15,7 @@ const App: React.FC = () => {
     targetWidth: 0,
     targetHeight: 0,
     sliceHeight: 1200,
+    enableSlicing: true,
     keepAspectRatio: true,
     exportFormat: 'jpeg',
   });
@@ -142,13 +143,14 @@ const App: React.FC = () => {
       img.slices.forEach((slice, idx) => {
         const link = document.createElement('a');
         link.href = slice.url;
-        link.download = `${img.fileName}_slice_${idx + 1}.${slice.format}`;
+        link.download = `${img.fileName}${options.enableSlicing ? `_slice_${idx + 1}` : ''}.${slice.format}`;
         link.click();
       });
     });
   };
 
   const totalSlices = useMemo(() => {
+    if (!options.enableSlicing) return images.length;
     return images.reduce((acc, img) => acc + Math.ceil((options.keepAspectRatio ? (options.targetWidth / img.aspectRatio) : options.targetHeight) / options.sliceHeight), 0);
   }, [images, options]);
 
@@ -181,7 +183,7 @@ const App: React.FC = () => {
             <span className="bg-blue-600 text-white p-2 rounded-lg leading-none">J</span>
             JJBoo PixelSlice
           </h1>
-          <p className="text-slate-500 mt-1">批量、并行、智能图像切片工具</p>
+          <p className="text-slate-500 mt-1">批量、并行、智能图像处理工具</p>
         </div>
         <div className="flex gap-3">
           {images.length > 0 && (
@@ -197,7 +199,7 @@ const App: React.FC = () => {
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium transition-all shadow-lg shadow-blue-200 flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-            上传多图
+            上传图片
           </button>
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" multiple />
         </div>
@@ -224,11 +226,21 @@ const App: React.FC = () => {
                     onChange={(e) => setOptions(prev => ({ ...prev, keepAspectRatio: e.target.checked }))}
                     className="w-4 h-4 rounded text-blue-600"
                   />
-                  <label htmlFor="ratio" className="text-sm text-slate-600 select-none cursor-pointer">锁定各自比例</label>
+                  <label htmlFor="ratio" className="text-sm text-slate-600 select-none cursor-pointer">锁定比例</label>
                 </div>
               </div>
 
               <div className="border-t border-slate-50 pt-4 space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">切片功能</label>
+                  <button 
+                    onClick={() => setOptions(prev => ({ ...prev, enableSlicing: !prev.enableSlicing }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${options.enableSlicing ? 'bg-blue-600' : 'bg-slate-200'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${options.enableSlicing ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">批量格式</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -244,21 +256,23 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center mb-1">
-                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">单张切片高度</label>
-                     <button onClick={handleAiAnalyze} disabled={isAnalyzing || images.length === 0} className="text-[10px] text-blue-600 font-bold hover:underline disabled:text-slate-300">
-                        {isAnalyzing ? '分析中...' : 'AI 建议'}
-                     </button>
+                {options.enableSlicing && (
+                  <div className="space-y-1 animate-fade-in">
+                    <div className="flex justify-between items-center mb-1">
+                       <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">单张切片高度</label>
+                       <button onClick={handleAiAnalyze} disabled={isAnalyzing || images.length === 0} className="text-[10px] text-blue-600 font-bold hover:underline disabled:text-slate-300">
+                          {isAnalyzing ? '分析中...' : 'AI 建议'}
+                       </button>
+                    </div>
+                    <NumberInput label="" value={options.sliceHeight} onChange={(val) => setOptions(prev => ({ ...prev, sliceHeight: val }))} disabled={images.length === 0} />
                   </div>
-                  <NumberInput label="" value={options.sliceHeight} onChange={(val) => setOptions(prev => ({ ...prev, sliceHeight: val }))} disabled={images.length === 0} />
-                </div>
+                )}
               </div>
 
               <div className="pt-4 border-t border-slate-50">
                 <div className="flex justify-between text-xs text-slate-500 mb-4">
                   <span>待处理: {images.length} 张图片</span>
-                  <span>预计总切片: {totalSlices}</span>
+                  <span>{options.enableSlicing ? `预计切片: ${totalSlices}` : '仅修改尺寸'}</span>
                 </div>
                 <button 
                   onClick={processBatch}
@@ -275,7 +289,7 @@ const App: React.FC = () => {
                     className="w-full mt-3 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2"
                    >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    一键下载全部
+                    下载全部
                    </button>
                 )}
               </div>
@@ -294,7 +308,7 @@ const App: React.FC = () => {
                 <svg className="w-10 h-10 text-slate-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2-2v12a2 2 0 002 2z" /></svg>
               </div>
               <h3 className="text-xl font-bold text-slate-700">开始上传您的图片</h3>
-              <p className="text-slate-400 mt-2">支持多选，并行处理每一张图片</p>
+              <p className="text-slate-400 mt-2">支持多选，批量高效处理</p>
             </div>
           ) : (
             <div className="space-y-8 animate-fade-in">
@@ -327,7 +341,7 @@ const App: React.FC = () => {
                         </div>
                         {img.slices.length > 0 && (
                           <div className="text-right">
-                             <p className="text-[10px] font-bold text-blue-600">{img.slices.length} 切片</p>
+                             <p className="text-[10px] font-bold text-blue-600">{img.slices.length} {options.enableSlicing ? '切片' : '结果'}</p>
                           </div>
                         )}
                       </div>
@@ -363,33 +377,34 @@ const App: React.FC = () => {
       {currentPreviewSlice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setPreviewData(null)}>
           <div className="relative w-full max-w-5xl bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row h-[85vh]" onClick={e => e.stopPropagation()}>
-            {/* Image View */}
             <div className="flex-1 bg-slate-100 relative overflow-hidden flex items-center justify-center p-4">
               <img src={currentPreviewSlice.slice.url} alt="Preview" className="max-w-full max-h-full object-contain shadow-lg rounded-lg" />
               
-              {/* Nav Overlay */}
               <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-4 pointer-events-none">
                 <button 
                   onClick={() => navigatePreview(-1)} 
-                  className="w-12 h-12 rounded-full bg-white/80 hover:bg-white shadow-lg flex items-center justify-center pointer-events-auto transition-transform hover:scale-110 active:scale-95"
+                  className="w-12 h-12 rounded-full bg-white/80 hover:bg-white shadow-lg flex items-center justify-center pointer-events-auto transition-transform hover:scale-110 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+                  disabled={currentPreviewSlice.total <= 1}
                 >
                   <svg className="w-6 h-6 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <button 
                   onClick={() => navigatePreview(1)} 
-                  className="w-12 h-12 rounded-full bg-white/80 hover:bg-white shadow-lg flex items-center justify-center pointer-events-auto transition-transform hover:scale-110 active:scale-95"
+                  className="w-12 h-12 rounded-full bg-white/80 hover:bg-white shadow-lg flex items-center justify-center pointer-events-auto transition-transform hover:scale-110 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+                  disabled={currentPreviewSlice.total <= 1}
                 >
                   <svg className="w-6 h-6 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
                 </button>
               </div>
             </div>
 
-            {/* Info Sidebar */}
             <div className="w-full md:w-80 p-8 flex flex-col bg-white border-l border-slate-100">
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <h3 className="text-xl font-bold text-slate-800 truncate" title={currentPreviewSlice.fileName}>{currentPreviewSlice.fileName}</h3>
-                  <p className="text-sm text-slate-400 mt-1">切片 {currentPreviewSlice.index + 1} / {currentPreviewSlice.total}</p>
+                  <p className="text-sm text-slate-400 mt-1">
+                    {options.enableSlicing ? `切片 ${currentPreviewSlice.index + 1} / ${currentPreviewSlice.total}` : '预览结果'}
+                  </p>
                 </div>
                 <button onClick={() => setPreviewData(null)} className="text-slate-400 hover:text-slate-600 transition-colors p-1">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -414,11 +429,11 @@ const App: React.FC = () => {
                 <div className="flex flex-col gap-3">
                   <a 
                     href={currentPreviewSlice.slice.url} 
-                    download={`${currentPreviewSlice.fileName}_slice_${currentPreviewSlice.index + 1}.${currentPreviewSlice.slice.format}`}
+                    download={`${currentPreviewSlice.fileName}${options.enableSlicing ? `_slice_${currentPreviewSlice.index + 1}` : ''}.${currentPreviewSlice.slice.format}`}
                     className="w-full bg-slate-900 hover:bg-black text-white py-3.5 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    下载此切片
+                    下载此图片
                   </a>
                 </div>
               </div>
