@@ -19,8 +19,10 @@ export interface SliceResult {
 }
 
 export type ExportFormat = 'jpeg' | 'png';
+export type ProcessingMode = 'individual' | 'mosaic';
 
 export interface ProcessingOptions {
+  mode: ProcessingMode;
   targetWidth: number;
   targetHeight: number;
   sliceHeight: number;
