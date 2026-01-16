@@ -1,16 +1,16 @@
+
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { ImageState, SliceResult, ProcessingOptions, ExportFormat, ProcessingMode } from './types';
 import { processImage, loadImage, loadAllImages, stitchImages } from './services/imageService';
 import { analyzeImageSlicing } from './services/aiService';
 import NumberInput from './components/NumberInput';
-
-// Removed redundant AIStudio interface and window declaration as they are already provided by the environment,
-// which was causing "All declarations of 'aistudio' must have identical modifiers" errors.
+import JSZip from 'jszip';
 
 const App: React.FC = () => {
   const [images, setImages] = useState<ImageState[]>([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isPackaging, setIsPackaging] = useState(false);
   const [previewData, setPreviewData] = useState<{ imageId: string; sliceIndex: number } | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   
@@ -146,15 +146,11 @@ const App: React.FC = () => {
     setIsBatchProcessing(false);
   };
 
-  // Implement API key selection logic and error handling for Pro models
   const handleAiAnalyze = async () => {
     if (images.length === 0) return;
-
-    // MANDATORY: Check for API key selection before using Pro models
     try {
       if ((window as any).aistudio && !(await (window as any).aistudio.hasSelectedApiKey())) {
         await (window as any).aistudio.openSelectKey();
-        // Assuming success as per guidelines race condition note
       }
     } catch (e) {
       console.warn('AIStudio key selection check failed:', e);
@@ -176,7 +172,6 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error('AI Analysis failed:', err);
-      // Reset key selection state and prompt user again if entity not found (usually billing/key issue)
       if (err?.message?.includes("Requested entity was not found")) {
         try {
           if ((window as any).aistudio) await (window as any).aistudio.openSelectKey();
@@ -249,6 +244,37 @@ const App: React.FC = () => {
         link.click();
       });
     });
+  };
+
+  const handleDownloadZip = async () => {
+    if (images.length === 0) return;
+    setIsPackaging(true);
+    const zip = new JSZip();
+
+    try {
+      for (const img of images) {
+        const folder = images.length > 1 ? zip.folder(img.fileName) : zip;
+        if (!folder) continue;
+
+        for (const [idx, slice] of img.slices.entries()) {
+          const response = await fetch(slice.url);
+          const blob = await response.blob();
+          const fileName = `${img.fileName}${options.enableSlicing ? `_slice_${idx + 1}` : ''}.${slice.format}`;
+          folder.file(fileName, blob);
+        }
+      }
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(content);
+      link.download = `JJBoo_PixelSlice_Export_${Date.now()}.zip`;
+      link.click();
+    } catch (error) {
+      console.error('Packaging failed:', error);
+      alert('打包失败，请尝试分别下载');
+    } finally {
+      setIsPackaging(false);
+    }
   };
 
   const canReorder = options.mode === 'mosaic' && !isBatchProcessing && !images.some(img => img.status === 'completed');
@@ -349,9 +375,24 @@ const App: React.FC = () => {
                   {isBatchProcessing ? <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : options.mode === 'mosaic' ? '高清拼图导出' : '高清并行处理'}
                 </button>
                 {images.some(img => img.status === 'completed') && (
-                   <button onClick={downloadAll} className="w-full mt-3 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2">
-                    下载结果
-                   </button>
+                  <div className="space-y-3 mt-4">
+                    <button onClick={downloadAll} className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-3 rounded-xl font-bold transition-all shadow-sm flex items-center justify-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      分别下载
+                    </button>
+                    <button 
+                      onClick={handleDownloadZip} 
+                      disabled={isPackaging}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 disabled:bg-slate-300"
+                    >
+                      {isPackaging ? (
+                        <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                      )}
+                      一键打包下载 (ZIP)
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
