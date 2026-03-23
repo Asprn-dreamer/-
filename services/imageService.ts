@@ -73,7 +73,9 @@ export const processImage = async (
   const maxSizeBytes = maxSliceSize * 1024;
 
   while (currentY < targetHeight) {
-    let actualSliceHeight = Math.min(sliceHeight, targetHeight - currentY);
+    // 如果 sliceHeight 为 0，则初始高度为剩余高度
+    let initialSliceHeight = sliceHeight > 0 ? Math.min(sliceHeight, targetHeight - currentY) : (targetHeight - currentY);
+    let actualSliceHeight = initialSliceHeight;
     let dataUrl = '';
     let sizeInBytes = 0;
     let attempts = 0;
