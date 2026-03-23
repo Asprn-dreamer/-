@@ -22,15 +22,15 @@ const App: React.FC = () => {
     enableSlicing: true,
     keepAspectRatio: true,
     exportFormat: 'jpeg',
+    maxSliceSize: 0,
+    quality: 'high',
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []) as File[];
-    if (files.length === 0) return;
-
+  const handleFiles = useCallback((files: File[]) => {
     files.forEach(file => {
+      if (!file.type.startsWith('image/')) return;
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
@@ -57,7 +57,27 @@ const App: React.FC = () => {
       };
       img.src = url;
     });
+  }, [images.length, options.targetWidth]);
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []) as File[];
+    if (files.length === 0) return;
+    handleFiles(files);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer.files) as File[];
+    if (files.length > 0) {
+      handleFiles(files);
+    }
   };
 
   const removeImage = (id: string) => {
@@ -280,7 +300,7 @@ const App: React.FC = () => {
   const canReorder = options.mode === 'mosaic' && !isBatchProcessing && !images.some(img => img.status === 'completed');
 
   return (
-    <div className="min-h-screen flex flex-col items-center p-4 md:p-8">
+    <div className="min-h-screen flex flex-col items-center p-4 md:p-8" onDragOver={handleDragOver} onDrop={handleDrop}>
       <header className="w-full max-w-7xl mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
@@ -348,13 +368,32 @@ const App: React.FC = () => {
                   ))}
                 </div>
 
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">导出质量</label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {(['high', 'medium', 'low'] as const).map((q) => (
+                      <button key={q} onClick={() => setOptions(prev => ({ ...prev, quality: q }))} className={`py-1.5 rounded-lg text-[10px] font-bold border transition-all ${options.quality === q ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-slate-200 text-slate-600'}`}>
+                        {q === 'high' ? '高' : q === 'medium' ? '中' : '低'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {options.enableSlicing && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center mb-1">
-                       <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">单张切片高度</label>
-                       <button onClick={handleAiAnalyze} disabled={isAnalyzing || images.length === 0} className="text-[10px] text-blue-600 font-bold hover:underline disabled:text-slate-300">{isAnalyzing ? '分析中...' : 'AI 建议'}</button>
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center mb-1">
+                         <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">单张切片高度</label>
+                         <button onClick={handleAiAnalyze} disabled={isAnalyzing || images.length === 0} className="text-[10px] text-blue-600 font-bold hover:underline disabled:text-slate-300">{isAnalyzing ? '分析中...' : 'AI 建议'}</button>
+                      </div>
+                      <NumberInput label="" value={options.sliceHeight} onChange={(val) => setOptions(prev => ({ ...prev, sliceHeight: val }))} disabled={images.length === 0} />
                     </div>
-                    <NumberInput label="" value={options.sliceHeight} onChange={(val) => setOptions(prev => ({ ...prev, sliceHeight: val }))} disabled={images.length === 0} />
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">单张最大内存 (KB)</label>
+                      <NumberInput label="" value={options.maxSliceSize} onChange={(val) => setOptions(prev => ({ ...prev, maxSliceSize: val }))} disabled={images.length === 0} />
+                      <p className="text-[10px] text-slate-400">设置为 0 则不限制内存</p>
+                    </div>
                   </div>
                 )}
               </div>

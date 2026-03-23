@@ -1,5 +1,14 @@
 
-import { SliceResult, ProcessingOptions } from '../types';
+import { SliceResult, ProcessingOptions, ExportQuality } from '../types';
+
+const getQualityValue = (quality: ExportQuality): number => {
+  switch (quality) {
+    case 'high': return 0.92;
+    case 'medium': return 0.8;
+    case 'low': return 0.6;
+    default: return 0.92;
+  }
+};
 
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return '0 Bytes';
@@ -23,7 +32,8 @@ export const processImage = async (
   imageElement: HTMLImageElement | HTMLCanvasElement,
   options: ProcessingOptions
 ): Promise<SliceResult[]> => {
-  const { targetWidth, targetHeight, sliceHeight, enableSlicing, exportFormat } = options;
+  const { targetWidth, targetHeight, sliceHeight, enableSlicing, exportFormat, maxSliceSize, quality } = options;
+  const qualityValue = getQualityValue(quality);
   
   const resizeCanvas = document.createElement('canvas');
   resizeCanvas.width = targetWidth;
@@ -32,7 +42,6 @@ export const processImage = async (
   
   if (!ctx) throw new Error('Could not get canvas context');
   
-  // 核心优化：设置高质量缩放算法
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   
@@ -46,8 +55,7 @@ export const processImage = async (
   const slices: SliceResult[] = [];
 
   if (!enableSlicing) {
-    // 提升导出质量到 1.0
-    const dataUrl = resizeCanvas.toDataURL(mimeType, exportFormat === 'jpeg' ? 1.0 : undefined);
+    const dataUrl = resizeCanvas.toDataURL(mimeType, exportFormat === 'jpeg' ? qualityValue : undefined);
     const sizeInBytes = getBase64Size(dataUrl);
     
     slices.push({
@@ -62,41 +70,60 @@ export const processImage = async (
 
   let currentY = 0;
   let index = 0;
+  const maxSizeBytes = maxSliceSize * 1024;
 
   while (currentY < targetHeight) {
-    const actualSliceHeight = Math.min(sliceHeight, targetHeight - currentY);
-    
-    const sliceCanvas = document.createElement('canvas');
-    sliceCanvas.width = targetWidth;
-    sliceCanvas.height = actualSliceHeight;
-    const sliceCtx = sliceCanvas.getContext('2d');
-    
-    if (sliceCtx) {
-      sliceCtx.imageSmoothingEnabled = true;
-      sliceCtx.imageSmoothingQuality = 'high';
+    let actualSliceHeight = Math.min(sliceHeight, targetHeight - currentY);
+    let dataUrl = '';
+    let sizeInBytes = 0;
+    let attempts = 0;
+
+    // 如果设置了最大内存限制，尝试调整高度
+    while (attempts < 5) {
+      const sliceCanvas = document.createElement('canvas');
+      sliceCanvas.width = targetWidth;
+      sliceCanvas.height = actualSliceHeight;
+      const sliceCtx = sliceCanvas.getContext('2d');
       
-      if (exportFormat === 'jpeg') {
-        sliceCtx.fillStyle = '#FFFFFF';
-        sliceCtx.fillRect(0, 0, targetWidth, actualSliceHeight);
+      if (sliceCtx) {
+        sliceCtx.imageSmoothingEnabled = true;
+        sliceCtx.imageSmoothingQuality = 'high';
+        
+        if (exportFormat === 'jpeg') {
+          sliceCtx.fillStyle = '#FFFFFF';
+          sliceCtx.fillRect(0, 0, targetWidth, actualSliceHeight);
+        }
+
+        sliceCtx.drawImage(
+          resizeCanvas,
+          0, currentY, targetWidth, actualSliceHeight,
+          0, 0, targetWidth, actualSliceHeight
+        );
+        
+        dataUrl = sliceCanvas.toDataURL(mimeType, exportFormat === 'jpeg' ? qualityValue : undefined);
+        sizeInBytes = getBase64Size(dataUrl);
+
+        // 如果没有限制，或者大小在限制内，或者高度已经很小了，就退出循环
+        if (maxSizeBytes <= 0 || sizeInBytes <= maxSizeBytes || actualSliceHeight <= 100) {
+          break;
+        }
+
+        // 估算新高度：按比例缩小，但至少保留一半高度或 100 像素
+        const ratio = maxSizeBytes / sizeInBytes;
+        actualSliceHeight = Math.max(100, Math.floor(actualSliceHeight * ratio * 0.95)); // 0.95 是安全系数
+      } else {
+        break;
       }
-
-      sliceCtx.drawImage(
-        resizeCanvas,
-        0, currentY, targetWidth, actualSliceHeight,
-        0, 0, targetWidth, actualSliceHeight
-      );
-      
-      const dataUrl = sliceCanvas.toDataURL(mimeType, exportFormat === 'jpeg' ? 1.0 : undefined);
-      const sizeInBytes = getBase64Size(dataUrl);
-
-      slices.push({
-        id: `slice-${Date.now()}-${index}`,
-        url: dataUrl,
-        index,
-        format: exportFormat,
-        sizeLabel: formatBytes(sizeInBytes)
-      });
+      attempts++;
     }
+
+    slices.push({
+      id: `slice-${Date.now()}-${index}`,
+      url: dataUrl,
+      index,
+      format: exportFormat,
+      sizeLabel: formatBytes(sizeInBytes)
+    });
     
     currentY += actualSliceHeight;
     index++;

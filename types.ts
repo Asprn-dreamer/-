@@ -20,6 +20,7 @@ export interface SliceResult {
 
 export type ExportFormat = 'jpeg' | 'png';
 export type ProcessingMode = 'individual' | 'mosaic';
+export type ExportQuality = 'high' | 'medium' | 'low';
 
 export interface ProcessingOptions {
   mode: ProcessingMode;
@@ -29,4 +30,6 @@ export interface ProcessingOptions {
   enableSlicing: boolean;
   keepAspectRatio: boolean;
   exportFormat: ExportFormat;
+  maxSliceSize: number; // in KB, 0 means no limit
+  quality: ExportQuality;
 }
